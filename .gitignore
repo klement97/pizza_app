@@ -2,3 +2,6 @@
 /venv/
 db.sqlite3
 .idea
+.pytest_cache
+pizza_app.egg-info
+src
