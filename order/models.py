@@ -1,7 +1,11 @@
+from decimal import Decimal
+
 from django.db import models
 
+from order.utils import ORDER_STATUS_CHOICES
 
-class PizzaSize(models.Model):
+
+class Size(models.Model):
     description = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=6, decimal_places=2)
 
@@ -9,7 +13,7 @@ class PizzaSize(models.Model):
         return f'{self.description} ${self.price}'
 
 
-class PizzaTopping(models.Model):
+class Topping(models.Model):
     description = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=6, decimal_places=2)
 
@@ -18,10 +22,73 @@ class PizzaTopping(models.Model):
 
 
 class Pizza(models.Model):
-    toppings = models.ManyToManyField(PizzaTopping)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    toppings = models.ManyToManyField(Topping, related_name='pizzas')
+
+    def __str__(self):
+        return f'{self.name} -- ${self.total_price}'
+
+    @property
+    def total_price(self) -> Decimal:
+        """
+        Total price is sum of all topping prices.
+        """
+        price = Decimal(0)
+        for topping in self.toppings.all():
+            price += topping.price
+
+        return price
 
 
 class Order(models.Model):
-    pizzas = models.ManyToManyField(Pizza)
-    extra_toppings = models.ManyToManyField(PizzaTopping)
-    size = models.ForeignKey(PizzaSize, on_delete=models.CASCADE, related_name='pizzas')
+    price = models.DecimalField(max_digits=6, decimal_places=2, blank=True)
+    notes = models.TextField(blank=True)
+    address = models.CharField(max_length=254)
+    status = models.IntegerField(choices=ORDER_STATUS_CHOICES)
+
+    @property
+    def total_price(self) -> Decimal:
+        """
+        Total price is sum of pizza prices in this order.
+        """
+        price = Decimal(0)
+        for pizza in self.pizzas.all():
+            price += pizza.total_price
+
+        return price
+
+    def send_to_delivery(self):
+        pass
+
+    def mark_as_delivered(self):
+        pass
+
+    def save(self, *args, **kwargs):
+        self.price = self.total_price
+        super().save(*args, **kwargs)
+
+
+class PizzaOrder(models.Model):
+    pizza = models.ForeignKey(Pizza, on_delete=models.CASCADE)
+    size = models.ForeignKey(Size, on_delete=models.CASCADE)
+    extra_toppings = models.ManyToManyField(
+        Topping,
+        related_name='pizza_orders'
+    )
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='pizzas'
+    )
+
+    def __str__(self):
+        return f'{self.pizza.name} -- {self.size.description}'
+
+    @property
+    def total_price(self) -> Decimal:
+        price = self.pizza.total_price + self.size.price
+        for topping in self.extra_toppings.all():
+            price += topping.price
+
+        return price

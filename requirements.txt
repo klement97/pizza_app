@@ -12,4 +12,3 @@ pytest-django==4.1.0
 pytz==2020.4
 sqlparse==0.4.1
 toml==0.10.2
--e .
