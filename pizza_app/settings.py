@@ -123,3 +123,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
+
+# There is nothing running at 8001,
+# this is just a dummy url to be used inside order creation.
+RECEIPT_MICROSERVICE = 'http://localhost:8001'

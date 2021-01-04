@@ -1,8 +1,10 @@
 from decimal import Decimal
 
+import requests
+from django.conf import settings
 from django.db import models
 
-from order.utils import ORDER_STATUS_CHOICES
+from order.utils import ORDER_STATUS_CHOICES, prepare_receipt_data
 
 
 class Size(models.Model):
@@ -26,9 +28,6 @@ class Pizza(models.Model):
     description = models.TextField(blank=True)
     toppings = models.ManyToManyField(Topping, related_name='pizzas')
 
-    def __str__(self):
-        return f'{self.name} -- ${self.total_price}'
-
     @property
     def total_price(self) -> Decimal:
         """
@@ -40,9 +39,12 @@ class Pizza(models.Model):
 
         return price
 
+    def __str__(self):
+        return f'{self.name} -- ${self.total_price}'
+
 
 class Order(models.Model):
-    price = models.DecimalField(max_digits=6, decimal_places=2, blank=True)
+    price = models.DecimalField(max_digits=6, decimal_places=2, null=True)
     notes = models.TextField(blank=True)
     address = models.CharField(max_length=254)
     status = models.IntegerField(choices=ORDER_STATUS_CHOICES)
@@ -64,14 +66,29 @@ class Order(models.Model):
     def mark_as_delivered(self):
         pass
 
+    def print_receipt(self):
+        requests.post(
+            url=settings.RECEIPT_MICROSERVICE,
+            data=prepare_receipt_data(order=self)
+        )
+
     def save(self, *args, **kwargs):
         self.price = self.total_price
+        self.print_receipt()
         super().save(*args, **kwargs)
 
 
 class PizzaOrder(models.Model):
-    pizza = models.ForeignKey(Pizza, on_delete=models.CASCADE)
-    size = models.ForeignKey(Size, on_delete=models.CASCADE)
+    pizza = models.ForeignKey(
+        Pizza,
+        on_delete=models.CASCADE,
+        related_name='pizza_orders'
+    )
+    size = models.ForeignKey(
+        Size,
+        on_delete=models.CASCADE,
+        related_name='pizza_orders'
+    )
     extra_toppings = models.ManyToManyField(
         Topping,
         related_name='pizza_orders'
@@ -87,6 +104,12 @@ class PizzaOrder(models.Model):
 
     @property
     def total_price(self) -> Decimal:
+        """
+        Total price is sum of the following:
+            - Pizza total price
+            - Size price
+            - Sum of toppings
+        """
         price = self.pizza.total_price + self.size.price
         for topping in self.extra_toppings.all():
             price += topping.price

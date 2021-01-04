@@ -12,3 +12,5 @@ pytest-django==4.1.0
 pytz==2020.4
 sqlparse==0.4.1
 toml==0.10.2
+model-bakery==1.2.1
+requests==2.25.1
